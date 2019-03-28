@@ -150,8 +150,14 @@ function Test-TargetResource {
         [string]
         $PreAction,
 
+        [string[]]
+        $PreActionArgumentList,
+
         [string]
         $PostAction,
+
+        [string[]]
+        $PostActionArgumentList,
 
         [string]
         $PreCopyFrom,
@@ -284,8 +290,14 @@ function Set-TargetResource {
         [string]
         $PreAction,
 
+        [string[]]
+        $PreActionArgumentList,
+
         [string]
         $PostAction,
+
+        [string[]]
+        $PostActionArgumentList,
 
         [string]
         $PreCopyFrom,
@@ -316,12 +328,7 @@ function Set-TargetResource {
     }
 
     #PreAction
-    try {
-        Invoke-ScriptBlock -ScriptBlockString $PreAction
-    }
-    catch [Exception] {
-        Write-Error $_.Exception
-    }
+    Invoke-ScriptBlock -ScriptBlockString $PreAction -ArgumentList $PreActionArgumentList -ErrorAction Continue
 
     $private:TempFolder = $env:TEMP
     $private:UseWebFile = $false
@@ -452,12 +459,7 @@ function Set-TargetResource {
     }
 
     #PostAction
-    try {
-        Invoke-ScriptBlock -ScriptBlockString $PostAction
-    }
-    catch [Exception] {
-        Write-Error $_.Exception
-    }
+    Invoke-ScriptBlock -ScriptBlockString $PostAction -ArgumentList $PostActionArgumentList -ErrorAction Continue
 
 } # end of Set-TargetResource
 
@@ -545,7 +547,7 @@ function Get-RemoteFile {
                 }
                 elseif ($tempPath.Scheme -match 'http|https|ftp') {
                     # Download from Web
-                    if ($redUri = Get-RedirectedUrl $tempPath.AbsoluteUri -ErrorAction SilentlyContinue) {
+                    if ($redUri = Get-RedirectedUrl $tempPath.AbsoluteUri) {
                         # When it is not a file direct link, obtain the file name of the redirect destination(issue #1)
                         $OutFile = Join-Path $DestinationFolder ([System.IO.Path]::GetFileName($redUri.LocalPath))
                     }
@@ -563,11 +565,9 @@ function Get-RemoteFile {
                     }
 
                     Write-Verbose ("Download file from '{0}' to '{1}'" -f $tempPath.AbsoluteUri, $OutFile)
-                    #Suppress Progress bar for faster download
-                    $private:origProgress = $ProgressPreference
-                    $ProgressPreference = 'SilentlyContinue'
+                    $private:origVerbose = $VerbosePreference; $VerbosePreference = 'SilentlyContinue'
                     Invoke-WebRequest -Uri $tempPath.AbsoluteUri -OutFile $OutFile -Credential $Credential -TimeoutSec $TimeoutSec -ErrorAction stop
-                    $ProgressPreference = $private:origProgress
+                    $VerbosePreference = $origVerbose
                 }
                 else {
                     $valid = $false
@@ -724,7 +724,7 @@ function Invoke-ScriptBlock {
 
         [Parameter()]
         [AllowEmptyCollection()]
-        [string[]]$Arguments
+        [string[]]$ArgumentList
     )
 
     if (-not $ScriptBlockString) { return }
@@ -732,8 +732,8 @@ function Invoke-ScriptBlock {
     try {
         $scriptBlock = [ScriptBlock]::Create($ScriptBlockString).GetNewClosure()
         Write-Verbose ('Execute ScriptBlock')
-        if (@($Arguments).Count -ge 1) {
-            $scriptBlock.Invoke($Arguments) | Out-String -Stream | Write-Verbose
+        if (@($ArgumentList).Count -ge 1) {
+            $scriptBlock.Invoke($ArgumentList) | Out-String -Stream | Write-Verbose
         }
         else {
             $scriptBlock.Invoke() | Out-String -Stream | Write-Verbose
@@ -746,24 +746,17 @@ function Invoke-ScriptBlock {
 
 
 function Get-RedirectedUrl {
-    [CmdletBinding()]
-    [OutputType([System.Uri])]
     Param (
         [Parameter(Mandatory, Position = 0)]
         [string]$URL
     )
 
-    try {
-        $request = [System.Net.WebRequest]::Create($URL)
-        $request.AllowAutoRedirect = $false
-        $response = $request.GetResponse()
+    $request = [System.Net.WebRequest]::Create($URL)
+    $request.AllowAutoRedirect = $false
+    $response = $request.GetResponse()
 
-        if ($response.StatusCode -eq "Found") {
-            [System.Uri]$response.GetResponseHeader("Location")
-        }
-    }
-    catch {
-        Write-Error $_.Exception
+    If ($response.StatusCode -eq "Found") {
+        [System.Uri]$response.GetResponseHeader("Location")
     }
 }
 
