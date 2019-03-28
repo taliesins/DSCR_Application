@@ -22,7 +22,9 @@ class cApplication : OMI_BaseResource
   [write] string FileHash;
   [write,ValueMap{"SHA1","SHA256","SHA384","SHA512","MD5","RIPEMD160"},Values{"SHA1","SHA256","SHA384","SHA512","MD5","RIPEMD160"}] string HashAlgorithm;
   [write] string PreAction;
+  [write] string PreActionArgumentList[];
   [write] string PostAction;
+  [write] string PostActionArgumentList[];
   [write] string PreCopyFrom;
   [write] string PreCopyTo;
 };
